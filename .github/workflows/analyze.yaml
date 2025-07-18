@@ -1,31 +1,4 @@
-name: Build, Analyze, and Publish C# Executable
-
-on:
-  push:
-    branches:
-      - master
-  workflow_dispatch:
-    inputs:
-      target_branch:
-        description: 'Branch to build from'
-        required: true
-        default: 'master'
-      build_configuration:
-        description: 'Build configuration (e.g., Debug, Release)'
-        required: true
-        default: 'Release'
-      target_runtime:
-        description: 'Target runtime identifier (e.g., win-x64)'
-        required: true
-        default: 'win-x64'
-        type: choice
-        options:
-          - win-x64
-
-jobs:
-  build-analyze-publish:
-    name: Build, analyze, and publish C# app
-    runs-on: windows-latest # 保持在 Windows 环境
+# ... (保持 runs-on: windows-latest) ...
 
     steps:
       - name: Checkout code
@@ -34,44 +7,15 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.target_branch }}
 
-      # SonarQube 相关的缓存步骤 (保持 Windows 路径)
-      - name: Cache SonarQube packages
-        uses: actions/cache@v4
-        with:
-          path: ~\AppData\Local\SonarScanner\cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-      - name: Cache SonarQube scanner
-        id: cache-sonar-scanner
-        uses: actions/cache@v4
-        with:
-          path: .\.sonar\scanner
-          key: ${{ runner.os }}-sonar-scanner
-          restore-keys: ${{ runner.os }}-sonar-scanner
+      # 暂时注释掉所有 SonarQube 缓存和安装步骤
+      # - name: Cache SonarQube packages ...
+      # - name: Cache SonarQube scanner ...
+      # - name: Install SonarQube scanner ...
 
       # ---------------------------------------------------
-      # 修正：安装 SonarQube scanner
-      - name: Install SonarQube scanner
-        if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
-        shell: powershell
-        run: |
-          Write-Host "Creating .sonar/scanner directory..."
-          New-Item -Path .\.sonar\scanner -ItemType Directory -Force | Out-Null # -Force 确保能创建，Out-Null 避免不必要的输出
-
-          Write-Host "Updating dotnet-sonarscanner tool..."
-          dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner --verbosity normal
-          if ($LASTEXITCODE -ne 0) {
-              throw "Failed to install/update dotnet-sonarscanner. Exit code: $LASTEXITCODE"
-          }
-          Write-Host "dotnet-sonarscanner installed successfully."
-          Write-Host "Contents of .sonar/scanner:"
-          Get-ChildItem .\.sonar\scanner\
-      # ---------------------------------------------------
-
-      # ---------------------------------------------------
-      # 调试：分步执行并检查退出码
+      # 核心编译步骤 (没有 SonarQube)
       - name: Restore NuGet packages
-        shell: powershell
+        shell: powershell # 或者 cmd
         run: |
           Write-Host "Running dotnet restore for AssemblyTool.sln..."
           dotnet restore AssemblyTool.sln --verbosity normal
@@ -80,50 +24,24 @@ jobs:
           }
           Write-Host "dotnet restore completed successfully."
 
-      - name: SonarQube Begin Analysis
-        shell: powershell
-        run: |
-          Write-Host "Starting SonarQube analysis (dotnet-sonarscanner begin)..."
-          # !!! 替换 "sp-tarkov_assembly-tool_b6343d33-dd80-43a0-bee2-331100b50832" 为你的实际 SonarQube 项目键
-          .\.sonar\scanner\dotnet-sonarscanner begin `
-            /k:"sp-tarkov_assembly-tool_b6343d33-dd80-43a0-bee2-331100b50832" `
-            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
-            /d:sonar.host.url="${{ secrets.SONAR_HOST_URL }}" `
-            /d:sonar.cs.roslyn.ignoreIssues=true # 常见的 SonarQube C# 问题，可以暂时忽略
-          if ($LASTEXITCODE -ne 0) {
-              throw "dotnet-sonarscanner begin failed. Exit code: $LASTEXITCODE"
-          }
-          Write-Host "dotnet-sonarscanner begin completed successfully."
-
       - name: Build Project
-        shell: powershell
+        shell: powershell # 或者 cmd
         run: |
           Write-Host "Building AssemblyTool.sln with configuration ${{ github.event.inputs.build_configuration }}..."
           dotnet build AssemblyTool.sln `
             --configuration ${{ github.event.inputs.build_configuration }} `
             --no-restore `
-            --verbosity normal # 增加构建详细程度
+            --verbosity normal
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet build failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet build completed successfully."
-
-      - name: SonarQube End Analysis
-        shell: powershell
-        run: |
-          Write-Host "Ending SonarQube analysis (dotnet-sonarscanner end)..."
-          .\.sonar\scanner\dotnet-sonarscanner end `
-            /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-          if ($LASTEXITCODE -ne 0) {
-              throw "dotnet-sonarscanner end failed. Exit code: $LASTEXITCODE"
-          }
-          Write-Host "dotnet-sonarscanner end completed successfully."
       # ---------------------------------------------------
 
       # ---------------------------------------------------
       # 发布可运行的二进制文件 (保持 PowerShell 语法)
       - name: Publish C# application for Windows x64
-        shell: powershell
+        shell: powershell # 或者 cmd
         run: |
           Write-Host "Publishing AssemblyTool/AssemblyTool.csproj for Windows x64..."
           dotnet publish AssemblyTool/AssemblyTool.csproj `
@@ -133,13 +51,13 @@ jobs:
             --self-contained true `
             /p:PublishSingleFile=true `
             /p:TrimUnusedAssemblies=true `
-            --verbosity normal # 增加发布详细程度
+            --verbosity normal
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet publish failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet publish completed successfully."
 
-      # 上传编译好的二进制文件作为 Artifact (保持 Windows 路径)
+      # 上传编译好的二进制文件作为 Artifact
       - name: Upload ${{ github.event.inputs.target_runtime }} Executable
         uses: actions/upload-artifact@v4
         with:
