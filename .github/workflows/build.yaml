@@ -26,12 +26,19 @@ jobs:
           dotnet restore ${{ env.SOLUTION_FILE }}
           --runtime win-x64
 
+      - name: Generate File Name
+        run: |
+          $shortSha = git rev-parse --short HEAD
+          $timestamp = Get-Date -Format "yyyyMMddHHmmss"
+          echo "ARTIFACT_NAME=assembly-tool-win-x64-$shortSha-$timestamp" >> $env:GITHUB_ENV
+        shell: powershell
+        
       - name: Publish application
         run: >
           dotnet publish ${{ env.PROJECT_FILE }}
           --configuration Release
           --runtime win-x64
-          --output ./Build/win-x64
+          --output ./Build/${{ env.ARTIFACT_NAME }}
           --no-restore
           -p:PublishSingleFile=true
           --self-contained true
@@ -39,5 +46,5 @@ jobs:
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: assembly-tool-win-x64
-          path: ./Build/win-x64
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ./Build/${{ env.ARTIFACT_NAME }}/
