@@ -1,55 +1,59 @@
 # .github/workflows/build.yml
 
-name: Build with Cake
+name: Build and Publish Executable
 
-# 触发工作流的事件
 on:
   # 当有代码推送到 master 分支时触发
   push:
-    branches:
-      - master
+    branches: [ master ]
   # 允许在 GitHub Actions 页面手动触发此工作流
   workflow_dispatch:
-
+  
 jobs:
-  build:
-    name: Build Project using Cake
-    # 在最新的 Windows 环境中运行
+  build-and-publish:
+    # 根据手动触发时选择的平台动态命名 Job
+    name: Build for ${{ github.event.inputs.target_runtime || 'win-x64' }}
+    # 运行环境。注意：若要构建 linux 或 osx 版本，需要更改为对应的运行器
+    # 例如：ubuntu-latest for linux-x64, macos-latest for osx-x64
     runs-on: windows-latest
 
+    env:
+      # 定义环境变量，让后续步骤更简洁
+      # !! 请根据你的项目结构修改下面的文件名和路径 !!
+      SOLUTION_FILE: 'AssemblyTool.sln'
+      PROJECT_FILE: 'AssemblyTool/AssemblyTool.csproj'
+
     steps:
-      # 第一步：检出代码
-      # 这是所有工作流的基础，它将你的仓库代码下载到运行器中。
+      # 1. 检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          # 获取所有历史记录，这对于某些构建工具（如 GitVersion）很有用
-          fetch-depth: 0
 
-      # 第二步：安装 .NET 9 SDK
-      # 遵循文档要求，安装指定版本的 .NET SDK。
+      # 2. 安装 .NET 9 SDK
       - name: Setup .NET 9 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.x'
 
-      # 第三步：执行 Cake 构建脚本
-      # 这一步模拟了 "在 IDE 中运行 builder project" 的过程。
-      # 我们使用 .NET Core Global Tool 的方式来运行 Cake。
-      - name: Run Cake build script
-        shell: pwsh
-        run: |
-          # 安装 Cake 工具。它是一个 .NET 全局工具，用于执行 .cake 脚本。
-          dotnet tool install --global Cake.Tool
-          # 执行构建。Cake 会自动在仓库根目录查找并运行 build.cake 脚本。
-          dotnet cake
+      # 3. 恢复 NuGet 包依赖
+      - name: Restore NuGet packages
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
 
-      # 第四步：上传构建产物
-      # 遵循文档说明，将 Build 目录下的产物打包上传。
-      - name: Upload build artifacts
+      # 4. 发布应用程序
+      # 'dotnet publish' 是一个组合命令，它会先编译再发布，非常高效。
+      - name: Publish application
+        run: >
+          dotnet publish ${{ env.PROJECT_FILE }}
+          --configuration ${{ github.event.inputs.build_configuration || 'Release' }}
+          --runtime ${{ github.event.inputs.target_runtime || 'win-x64' }}
+          --output ./Build/${{ github.event.inputs.target_runtime || 'win-x64' }}
+          --no-restore
+          -p:PublishSingleFile=true
+          -p:PublishTrimmed=true
+          --self-contained true
+
+      # 5. 上传构建产物
+      - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
-          # 上传后在 GitHub Actions 页面显示的名字
-          name: build-output
-          # 需要上传的目录路径，对应文档中的 `solutionDir\Build`
-          path: Build/
+          name: executable-${{ github.event.inputs.target_runtime || 'win-x64' }}
+          path: ./Build/${{ github.event.inputs.target_runtime || 'win-x64' }}/
