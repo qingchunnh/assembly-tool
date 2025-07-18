@@ -3,22 +3,34 @@
 name: Build and Publish Executable
 
 on:
-  # 当有代码推送到 master 分支时触发
   push:
     branches: [ master ]
-  # 允许在 GitHub Actions 页面手动触发此工作流
   workflow_dispatch:
-  
+    inputs:
+      build_configuration:
+        description: 'Build configuration (e.g., Release, Debug)'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+      target_runtime:
+        description: 'Target runtime identifier (e.g., win-x64)'
+        required: true
+        default: 'win-x64'
+        type: choice
+        options:
+          - win-x64
+          - linux-x64
+          - osx-x64
+
 jobs:
   build-and-publish:
-    # 根据手动触发时选择的平台动态命名 Job
     name: Build for ${{ github.event.inputs.target_runtime || 'win-x64' }}
-    # 运行环境。注意：若要构建 linux 或 osx 版本，需要更改为对应的运行器
-    # 例如：ubuntu-latest for linux-x64, macos-latest for osx-x64
     runs-on: windows-latest
 
     env:
-      # 定义环境变量，让后续步骤更简洁
       # !! 请根据你的项目结构修改下面的文件名和路径 !!
       SOLUTION_FILE: 'AssemblyTool.sln'
       PROJECT_FILE: 'AssemblyTool/AssemblyTool.csproj'
@@ -34,12 +46,15 @@ jobs:
         with:
           dotnet-version: '9.x'
 
-      # 3. 恢复 NuGet 包依赖
+      # 3. 恢复 NuGet 包依赖 (已修正)
       - name: Restore NuGet packages
-        run: dotnet restore ${{ env.SOLUTION_FILE }}
+        # 核心修正：在这里也添加 --runtime 参数
+        # 确保 restore 和 publish 的目标平台一致
+        run: >
+          dotnet restore ${{ env.SOLUTION_FILE }}
+          --runtime ${{ github.event.inputs.target_runtime || 'win-x64' }}
 
       # 4. 发布应用程序
-      # 'dotnet publish' 是一个组合命令，它会先编译再发布，非常高效。
       - name: Publish application
         run: >
           dotnet publish ${{ env.PROJECT_FILE }}
