@@ -1,33 +1,11 @@
-# .github/workflows/build.yml
-
-name: Build and Publish Executable
+name: assembly-tool Release Build
 
 on:
-  push:
-    branches: [ master ]
   workflow_dispatch:
-    inputs:
-      build_configuration:
-        description: 'Build configuration (e.g., Release, Debug)'
-        required: true
-        default: 'Release'
-        type: choice
-        options:
-          - Release
-          - Debug
-      target_runtime:
-        description: 'Target runtime identifier (e.g., win-x64)'
-        required: true
-        default: 'win-x64'
-        type: choice
-        options:
-          - win-x64
-          - linux-x64
-          - osx-x64
 
 jobs:
   build-and-publish:
-    name: Build for ${{ github.event.inputs.target_runtime || 'win-x64' }}
+    name: Build Release for Windows (win-x64)
     runs-on: windows-latest
 
     env:
@@ -46,15 +24,14 @@ jobs:
       - name: Restore NuGet packages
         run: >
           dotnet restore ${{ env.SOLUTION_FILE }}
-          --runtime ${{ github.event.inputs.target_runtime || 'win-x64' }}
+          --runtime win-x64
 
-      # 核心修正：移除了 -p:PublishTrimmed=true
       - name: Publish application
         run: >
           dotnet publish ${{ env.PROJECT_FILE }}
-          --configuration ${{ github.event.inputs.build_configuration || 'Release' }}
-          --runtime ${{ github.event.inputs.target_runtime || 'win-x64' }}
-          --output ./Build/${{ github.event.inputs.target_runtime || 'win-x64' }}
+          --configuration Release
+          --runtime win-x64
+          --output ./Build/win-x64
           --no-restore
           -p:PublishSingleFile=true
           --self-contained true
@@ -62,5 +39,5 @@ jobs:
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: executable-${{ github.event.inputs.target_runtime || 'win-x64' }}
-          path: ./Build/${{ github.event.inputs.target_runtime || 'win-x64' }}/
+          name: assembly-tool-win-x64
+          path: ./Build/win-x64
