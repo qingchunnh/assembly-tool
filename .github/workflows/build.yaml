@@ -1,0 +1,53 @@
+# 工作流名称
+name: .NET Build and Package
+
+# 触发工作流的事件
+on:
+  # 当有代码推送到 main 分支时触发
+  push:
+    branches: [ "main" ]
+  # 允许您在 GitHub Actions 页面手动触发此工作流
+  workflow_dispatch:
+
+# 定义一个或多个作业（job）
+jobs:
+  build:
+    # 指定作业运行的虚拟机环境，windows-latest 对 .NET 项目兼容性最好
+    runs-on: windows-latest
+
+    steps:
+    # 第一步：检出（下载）你的仓库代码到虚拟机
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 第二步：安装和设置 .NET SDK 环境
+    # 你可以根据你的项目需求更改 dotnet-version
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x # 推荐使用最新的稳定版，或你项目指定的版本
+
+    # 第三步：还原 NuGet 包依赖
+    # 针对你的解决方案文件 AssemblyTool.sln
+    - name: Restore dependencies
+      run: dotnet restore AssemblyTool.sln
+
+    # 第四步：编译项目
+    # --configuration Release 表示编译为发布版本，性能更高
+    # --no-restore 因为上一步已经还原过了，可以跳过以节省时间
+    - name: Build project
+      run: dotnet build AssemblyTool.sln --configuration Release --no-restore
+
+    # 第五步：上传编译产物
+    # 这会将编译生成的文件打包，并上传到工作流页面供你下载
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        # 上传的产物包名称
+        name: build-artifacts
+        # 要上传的文件路径
+        # '**/bin/Release' 是一个通配符路径，它会查找所有子目录下的 bin/Release 文件夹
+        # 这会自动包含 AssemblyLib, AssemblyTool, Builder 等所有项目的编译输出
+        path: '**/bin/Release'
+        # 产物保留天数
+        retention-days: 7
