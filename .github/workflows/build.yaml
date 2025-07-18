@@ -3,16 +3,12 @@ name: .NET Publish and Package
 
 # 触发工作流的事件
 on:
-  # 当有代码推送到 main 分支时触发
   push:
     branches: [ "main" ]
-  # 当有 pull request 指向 main 分支时触发
   pull_request:
     branches: [ "main" ]
-  # 允许您在 GitHub Actions 页面手动触发此工作流
   workflow_dispatch:
 
-# 定义一个或多个作业（job）
 jobs:
   build-and-publish:
     # 指定作业运行的虚拟机环境
@@ -27,16 +23,26 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x # 保持与你项目匹配的版本
+        # 确保版本覆盖你项目中所有需要的 .NET 版本
+        # .NET 8 SDK 可以编译旧的 .NET Framework 项目
+        dotnet-version: 8.0.x
 
     # 第三步：还原 NuGet 包依赖
     - name: Restore dependencies
       run: dotnet restore AssemblyTool.sln
 
     # 第四步：发布项目 (这是关键的改动)
-    # 在命令末尾添加 /p:PublishSingleFile=false 来禁用单文件发布
+    # 添加 --framework net48 来解决多目标框架问题
+    # 同时保留之前的 /p:PublishSingleFile=false 等参数
     - name: Publish project
-      run: dotnet publish AssemblyTool.sln --configuration Release --no-restore --output ./publish /p:PublishSingleFile=false
+      run: >
+        dotnet publish AssemblyTool.sln 
+        --configuration Release 
+        --framework net48 
+        --no-restore 
+        --output ./publish 
+        /p:PublishSingleFile=false 
+        /p:PublishTrimmed=false
 
     # 第五步：上传发布产物
     - name: Upload publish artifacts
