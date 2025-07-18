@@ -1,58 +1,55 @@
-# 工作流名称
-name: .NET Self-Contained Publish
+# .github/workflows/build.yml
+
+name: Build with Cake
 
 # 触发工作流的事件
 on:
+  # 当有代码推送到 master 分支时触发
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - master
+  # 允许在 GitHub Actions 页面手动触发此工作流
   workflow_dispatch:
 
 jobs:
-  build-and-publish:
-    # 指定作业运行的虚拟机环境
+  build:
+    name: Build Project using Cake
+    # 在最新的 Windows 环境中运行
     runs-on: windows-latest
 
     steps:
-    # 第一步：检出（下载）你的仓库代码到虚拟机
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      # 第一步：检出代码
+      # 这是所有工作流的基础，它将你的仓库代码下载到运行器中。
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # 获取所有历史记录，这对于某些构建工具（如 GitVersion）很有用
+          fetch-depth: 0
 
-    # 第二步：安装和设置 .NET SDK 环境
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        # 注意：错误日志显示你在使用 .NET 9 SDK，这里保持一致
-        # 如果你的项目是 .NET 8，请改为 8.0.x
-        dotnet-version: 8.0.x 
+      # 第二步：安装 .NET 9 SDK
+      # 遵循文档要求，安装指定版本的 .NET SDK。
+      - name: Setup .NET 9 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.x'
 
-    # 第三步：还原 NuGet 包依赖 (这是关键的改动)
-    # 在 restore 命令中就指定 runtime，为独立发布做准备
-    - name: Restore dependencies for specific runtime
-      run: dotnet restore AssemblyTool.sln --runtime win-x64
+      # 第三步：执行 Cake 构建脚本
+      # 这一步模拟了 "在 IDE 中运行 builder project" 的过程。
+      # 我们使用 .NET Core Global Tool 的方式来运行 Cake。
+      - name: Run Cake build script
+        shell: pwsh
+        run: |
+          # 安装 Cake 工具。它是一个 .NET 全局工具，用于执行 .cake 脚本。
+          dotnet tool install --global Cake.Tool
+          # 执行构建。Cake 会自动在仓库根目录查找并运行 build.cake 脚本。
+          dotnet cake
 
-    # 第四步：构建整个解决方案
-    # 这一步确保所有项目（包括.NET Framework的）都被正确编译
-    - name: Build solution
-      run: dotnet build AssemblyTool.sln --configuration Release --no-restore
-
-    # 第五步：发布主项目为独立的单个可执行文件
-    - name: Publish main project as a single executable
-      run: >
-        dotnet publish AssemblyTool/AssemblyTool.csproj
-        --configuration Release
-        --runtime win-x64
-        --self-contained true
-        /p:PublishSingleFile=true
-        /p:IncludeNativeLibrariesForSelfExtract=true
-        --output ./publish
-        --no-build
-
-    # 第六步：上传发布产物
-    - name: Upload publish artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: Standalone-Executable-win-x64
-        path: ./publish
-        retention-days: 7
+      # 第四步：上传构建产物
+      # 遵循文档说明，将 Build 目录下的产物打包上传。
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          # 上传后在 GitHub Actions 页面显示的名字
+          name: build-output
+          # 需要上传的目录路径，对应文档中的 `solutionDir\Build`
+          path: Build/
