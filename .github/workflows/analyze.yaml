@@ -30,44 +30,55 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.inputs.target_branch }}
+      
       - name: Restore NuGet packages
         shell: powershell
         run: |
           Write-Host "Running dotnet restore for AssemblyTool.sln..."
-          dotnet restore AssemblyTool.sln --verbosity normal
+          dotnet restore AssemblyTool.sln --verbosity:normal
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet restore failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet restore completed successfully."
+      
       - name: Build Project
         shell: powershell
         run: |
-          Write-Host "Building AssemblyTool.sln with configuration ${{ github.event.inputs.build_configuration }}..."
-          # 修复点：将 --no-restore 移动到 --configuration 之前
+          $config = "${{ github.event.inputs.build_configuration }}"
+          Write-Host "Building AssemblyTool.sln with configuration $config..."
+          
+          # 修复点：使用冒号语法和引号包裹参数值
           dotnet build AssemblyTool.sln `
             --no-restore `
-            --configuration ${{ github.event.inputs.build_configuration }} `
-            --verbosity normal
+            --configuration "$config" `
+            --verbosity:normal
+          
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet build failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet build completed successfully."
+      
       - name: Publish C# application for Windows x64
         shell: powershell
         run: |
-          Write-Host "Publishing AssemblyTool/AssemblyTool.csproj for Windows x64..."
+          $config = "${{ github.event.inputs.build_configuration }}"
+          $runtime = "${{ github.event.inputs.target_runtime }}"
+          
+          Write-Host "Publishing AssemblyTool/AssemblyTool.csproj for $runtime..."
           dotnet publish AssemblyTool/AssemblyTool.csproj `
-            --configuration ${{ github.event.inputs.build_configuration }} `
-            --output publish/${{ github.event.inputs.target_runtime }} `
-            --runtime ${{ github.event.inputs.target_runtime }} `
+            --configuration "$config" `
+            --output "publish/$runtime" `
+            --runtime "$runtime" `
             --self-contained true `
             /p:PublishSingleFile=true `
             /p:TrimUnusedAssemblies=true `
-            --verbosity normal
+            --verbosity:normal
+          
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet publish failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet publish completed successfully."
+      
       - name: Upload ${{ github.event.inputs.target_runtime }} Executable
         uses: actions/upload-artifact@v4
         with:
