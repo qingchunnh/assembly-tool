@@ -24,31 +24,27 @@ jobs:
       uses: actions/checkout@v4
 
     # 第二步：安装和设置 .NET SDK 环境
-    # 你可以根据你的项目需求更改 dotnet-version
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x # 推荐使用最新的稳定版，或你项目指定的版本
+        dotnet-version: 8.0.x # 保持与你项目匹配的版本
 
     # 第三步：还原 NuGet 包依赖
     - name: Restore dependencies
       run: dotnet restore AssemblyTool.sln
 
     # 第四步：发布项目 (这是关键的改动)
-    # 使用 dotnet publish 会将所有需要的文件（包括依赖的DLL）都放到一个文件夹里
-    # --configuration Release 表示发布为发行版
-    # --output ./publish 指定一个统一的输出文件夹，方便后续打包
+    # 在命令末尾添加 /p:PublishSingleFile=false 来禁用单文件发布
     - name: Publish project
-      run: dotnet publish AssemblyTool.sln --configuration Release --no-restore --output ./publish
+      run: dotnet publish AssemblyTool.sln --configuration Release --no-restore --output ./publish /p:PublishSingleFile=false
 
     # 第五步：上传发布产物
-    # 现在我们只从 ./publish 这一个文件夹上传，里面包含了所有需要的文件
     - name: Upload publish artifacts
       uses: actions/upload-artifact@v4
       with:
         # 上传的产物包名称
         name: published-application
-        # 要上传的文件路径，就是上面 publish 命令指定的输出目录
+        # 要上传的文件路径
         path: ./publish
         # 产物保留天数
         retention-days: 7
