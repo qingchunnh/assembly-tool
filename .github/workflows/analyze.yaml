@@ -4,15 +4,26 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch: 
+  workflow_dispatch:
     inputs:
-      target_branch: 
+      target_branch:
         description: 'Branch to build from'
         required: true
         default: 'master'
+      build_configuration:
+        description: 'Build configuration (e.g., Debug, Release)'
+        required: true
+        default: 'Release'
+      target_runtime:
+        description: 'Target runtime identifier (e.g., win-x64)'
+        required: true
+        default: 'win-x64'
+        type: choice
+        options:
+          - win-x64 # .NET Framework 只能在 Windows 上运行
 
 jobs:
-  build-analyze-publish: 
+  build-analyze-publish:
     name: Build, analyze, and publish C# app
     runs-on: windows-latest
 
@@ -21,51 +32,59 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
+          ref: ${{ github.event.inputs.target_branch }}
 
       - name: Cache SonarQube packages
         uses: actions/cache@v4
         with:
-          path: ~\.sonar\cache
+          path: ~\AppData\Local\SonarScanner\cache # Windows 路径
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
       - name: Cache SonarQube scanner
         id: cache-sonar-scanner
         uses: actions/cache@v4
         with:
-          path: .\.sonar\scanner
+          path: .\.sonar\scanner # Windows 路径
           key: ${{ runner.os }}-sonar-scanner
           restore-keys: ${{ runner.os }}-sonar-scanner
+
       - name: Install SonarQube scanner
         if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
-        shell: powershell
+        shell: powershell # 明确使用 PowerShell
         run: |
-          New-Item -Path .\.sonar\scanner -ItemType Directory
+          New-Item -Path .\.sonar\scanner -ItemType Directory -Force # -Force 确保能创建
           dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner
 
       - name: Build and analyze with SonarQube
-        shell: powershell
+        shell: powershell # 明确使用 PowerShell
         run: |
-          dotnet build
-          .\.sonar\scanner\dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+          dotnet restore AssemblyTool.sln
 
+          .\.sonar\scanner\dotnet-sonarscanner begin `
+            /k:"sp-tarkov_assembly-tool_b6343d33-dd80-43a0-bee2-331100b50832" `
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
+            /d:sonar.host.url="${{ secrets.SONAR_HOST_URL }}" `
+            /d:sonar.cs.roslyn.ignoreIssues=true # 常见的 SonarQube C# 问题，可以暂时忽略
+
+          dotnet build AssemblyTool.sln --configuration ${{ github.event.inputs.build_configuration }} --no-restore
+
+          .\.sonar\scanner\dotnet-sonarscanner end `
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+            
       - name: Publish C# application for Windows x64
-        shell: powershell
+        shell: powershell # 明确使用 PowerShell
         run: |
+          # !!! 确认 'AssemblyTool/AssemblyTool.csproj' 是正确的路径
           dotnet publish AssemblyTool/AssemblyTool.csproj `
-            --configuration Release `
-            --output publish/win-x64 `
-            --runtime win-x64 `
+            --configuration ${{ github.event.inputs.build_configuration }} `
+            --output publish/${{ github.event.inputs.target_runtime }} `
+            --runtime ${{ github.event.inputs.target_runtime }} `
             --self-contained true `
             /p:PublishSingleFile=true `
             /p:TrimUnusedAssemblies=true
 
-      - name: Upload Windows x64 Executable
+      - name: Upload ${{ github.event.inputs.target_runtime }} Executable
         uses: actions/upload-artifact@v4
         with:
-          name: windows-x64-executable
-          path: publish/win-x64 
+          name: ${{ github.event.inputs.target_runtime }}-executable
+          path: publish/${{ github.event.inputs.target_runtime }}
