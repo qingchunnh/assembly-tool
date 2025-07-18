@@ -26,13 +26,14 @@ jobs:
   build-publish:
     name: Build and publish C# app
     runs-on: windows-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.inputs.target_branch }}
+          # 注意：当由 push 触发时，github.event.inputs.target_branch 会为空
+          # 为了同时兼容 push 和 workflow_dispatch，可以做如下修改
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.target_branch || github.ref }}
 
       - name: Restore NuGet packages
         shell: powershell
@@ -47,36 +48,28 @@ jobs:
       - name: Build Project
         shell: powershell
         run: |
-          Write-Host "Building AssemblyTool.sln with configuration ${{ github.event.inputs.build_configuration }}..."
-          dotnet build AssemblyTool.sln `
-            --configuration ${{ github.event.inputs.build_configuration }} `
-            --no-restore `
-            --verbosity normal
+          Write-Host "Building AssemblyTool.sln with configuration ${{ github.event.inputs.build_configuration || 'Release' }}..."
+          # 将命令合并到一行以避免参数解析问题
+          dotnet build AssemblyTool.sln --configuration ${{ github.event.inputs.build_configuration || 'Release' }} --no-restore --verbosity normal
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet build failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet build completed successfully."
 
-      - name: Publish C# application for Windows x64
+      - name: Publish C# application
         shell: powershell
         run: |
-          Write-Host "Publishing AssemblyTool/AssemblyTool.csproj for Windows x64..."
+          Write-Host "Publishing AssemblyTool/AssemblyTool.csproj for runtime ${{ github.event.inputs.target_runtime || 'win-x64' }}..."
           # !!! 再次确认 'AssemblyTool/AssemblyTool.csproj' 是你的主可执行项目文件路径
-          dotnet publish AssemblyTool/AssemblyTool.csproj `
-            --configuration ${{ github.event.inputs.build_configuration }} `
-            --output publish/${{ github.event.inputs.target_runtime }} `
-            --runtime ${{ github.event.inputs.target_runtime }} `
-            --self-contained true `
-            /p:PublishSingleFile=true `
-            /p:TrimUnusedAssemblies=true `
-            --verbosity normal
+          # 将命令合并到一行以避免参数解析问题
+          dotnet publish AssemblyTool/AssemblyTool.csproj --configuration ${{ github.event.inputs.build_configuration || 'Release' }} --output publish/${{ github.event.inputs.target_runtime || 'win-x64' }} --runtime ${{ github.event.inputs.target_runtime || 'win-x64' }} --self-contained true /p:PublishSingleFile=true /p:TrimUnusedAssemblies=true --verbosity normal
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet publish failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet publish completed successfully."
 
-      - name: Upload ${{ github.event.inputs.target_runtime }} Executable
+      - name: Upload Executable Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.target_runtime }}-executable
-          path: publish/${{ github.event.inputs.target_runtime }}
+          name: ${{ (github.event.inputs.target_runtime || 'win-x64') }}-executable
+          path: publish/${{ github.event.inputs.target_runtime || 'win-x64' }}
