@@ -50,8 +50,8 @@ jobs:
           Write-Host "Building AssemblyTool.sln with configuration ${{ github.event.inputs.build_configuration }}..."
           dotnet build AssemblyTool.sln `
             --configuration ${{ github.event.inputs.build_configuration }} `
-            --no-restore ` # 这一行是参数，后面不能有 # 注释
-            --verbosity normal # 这一行是参数，后面不能有 # 注释
+            --no-restore `
+            --verbosity normal
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet build failed. Exit code: $LASTEXITCODE"
           }
@@ -69,7 +69,7 @@ jobs:
             --self-contained true `
             /p:PublishSingleFile=true `
             /p:TrimUnusedAssemblies=true `
-            --verbosity normal # 这一行是参数，后面不能有 # 注释
+            --verbosity normal
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet publish failed. Exit code: $LASTEXITCODE"
           }
