@@ -1,4 +1,4 @@
-name: assembly-tool Release Build
+name: assembly-tool Build
 
 on:
   workflow_dispatch:
@@ -43,7 +43,7 @@ jobs:
           echo "ARTIFACT_NAME=assembly-tool-release-win-x64-$shortSha-$timestamp" >> $env:GITHUB_ENV
         shell: powershell
         
-      - name: Publish application
+      - name: Publish Release application
         run: >
           dotnet publish ${{ env.PROJECT_FILE }}
           --configuration Release
@@ -88,10 +88,10 @@ jobs:
           echo "ARTIFACT_NAME=assembly-tool-debug-win-x64-$shortSha-$timestamp" >> $env:GITHUB_ENV
         shell: powershell
         
-      - name: Publish application
+      - name: Publish Debug application
         run: >
           dotnet publish ${{ env.PROJECT_FILE }}
-          --configuration Release
+          --configuration Debug
           --runtime win-x64
           --output ./Build/${{ env.ARTIFACT_NAME }}
           --no-restore
