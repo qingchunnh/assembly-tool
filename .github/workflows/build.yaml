@@ -31,30 +31,24 @@ jobs:
     runs-on: windows-latest
 
     env:
-      # !! 请根据你的项目结构修改下面的文件名和路径 !!
       SOLUTION_FILE: 'AssemblyTool.sln'
       PROJECT_FILE: 'AssemblyTool/AssemblyTool.csproj'
 
     steps:
-      # 1. 检出代码
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. 安装 .NET 9 SDK
       - name: Setup .NET 9 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.x'
 
-      # 3. 恢复 NuGet 包依赖 (已修正)
       - name: Restore NuGet packages
-        # 核心修正：在这里也添加 --runtime 参数
-        # 确保 restore 和 publish 的目标平台一致
         run: >
           dotnet restore ${{ env.SOLUTION_FILE }}
           --runtime ${{ github.event.inputs.target_runtime || 'win-x64' }}
 
-      # 4. 发布应用程序
+      # 核心修正：移除了 -p:PublishTrimmed=true
       - name: Publish application
         run: >
           dotnet publish ${{ env.PROJECT_FILE }}
@@ -63,10 +57,8 @@ jobs:
           --output ./Build/${{ github.event.inputs.target_runtime || 'win-x64' }}
           --no-restore
           -p:PublishSingleFile=true
-          -p:PublishTrimmed=true
           --self-contained true
 
-      # 5. 上传构建产物
       - name: Upload executable artifact
         uses: actions/upload-artifact@v4
         with:
