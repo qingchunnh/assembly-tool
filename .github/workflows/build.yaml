@@ -1,5 +1,5 @@
 # 工作流名称
-name: .NET Publish and Package
+name: .NET Build and Publish
 
 # 触发工作流的事件
 on:
@@ -23,28 +23,32 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        # 确保版本覆盖你项目中所有需要的 .NET 版本
-        # .NET 8 SDK 可以编译旧的 .NET Framework 项目
-        dotnet-version: 8.0.x
+        dotnet-version: 8.0.x # 确保版本覆盖你项目中所有需要的 .NET 版本
 
     # 第三步：还原 NuGet 包依赖
+    # 针对整个解决方案进行还原，确保所有项目依赖都下载
     - name: Restore dependencies
       run: dotnet restore AssemblyTool.sln
 
-    # 第四步：发布项目 (这是关键的改动)
-    # 添加 --framework net48 来解决多目标框架问题
-    # 同时保留之前的 /p:PublishSingleFile=false 等参数
-    - name: Publish project
-      run: >
-        dotnet publish AssemblyTool.sln 
-        --configuration Release 
-        --framework net48 
-        --no-restore 
-        --output ./publish 
-        /p:PublishSingleFile=false 
-        /p:PublishTrimmed=false
+    # 第四步：构建整个解决方案
+    # 使用 dotnet build 来编译所有项目，但不发布。
+    # 这会处理好所有项目间的依赖关系，包括 de4dot 等 .NET Framework 项目。
+    # 我们在这里就禁用可空引用警告，让日志更清晰。
+    - name: Build solution
+      run: dotnet build AssemblyTool.sln --configuration Release --no-restore /p:Nullable=disable
 
-    # 第五步：上传发布产物
+    # 第五步：发布主应用程序
+    # 仅发布你的主项目（假设是 AssemblyTool）。
+    # publish 命令会自动查找并包含所有依赖项（包括 AssemblyLib, DumpLib, 甚至 de4dot 的输出）到发布目录。
+    # --no-build 因为上一步已经构建过了，可以节省时间。
+    - name: Publish main project
+      run: >
+        dotnet publish AssemblyTool/AssemblyTool.csproj 
+        --configuration Release 
+        --no-build 
+        --output ./publish
+
+    # 第六步：上传发布产物
     - name: Upload publish artifacts
       uses: actions/upload-artifact@v4
       with:
