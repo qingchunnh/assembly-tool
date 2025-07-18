@@ -1,130 +1,86 @@
-name: Build and Publish C# Executable (No SonarQube) # 明确表示不包含 SonarQube
+name: Build and Publish C# Executable (No SonarQube) # 工作流名称，清晰表明不含 SonarQube
 
 on:
   push:
     branches:
-      - master
-  workflow_dispatch:
+      - master # 当代码推送到 master 分支时自动触发
+  workflow_dispatch: # 启用手动触发
     inputs:
-      target_branch:
+      target_branch: # 手动触发时可选择要构建的分支
         description: 'Branch to build from'
         required: true
         default: 'master'
-      build_configuration:
+      build_configuration: # 手动触发时可选择构建配置 (Debug/Release)
         description: 'Build configuration (e.g., Debug, Release)'
         required: true
         default: 'Release'
-      target_runtime:
+      target_runtime: # 手动触发时可选择目标运行时 (对于 .NET Framework，通常只有 win-x64)
         description: 'Target runtime identifier (e.g., win-x64)'
         required: true
         default: 'win-x64'
         type: choice
         options:
-          - win-x64
+          - win-x64 # .NET Framework 应用程序只能在 Windows 上运行
 
 jobs:
-  build-publish: # 简化 job 名称
+  build-publish: # Job 的名称
     name: Build and publish C# app
-    runs-on: windows-latest # 保持在 Windows 环境，因为是 .NET Framework
+    runs-on: windows-latest # 必须在 Windows 环境下构建 .NET Framework 项目
 
     steps:
-      - name: Checkout code
+      - name: Checkout code # 检出仓库代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          ref: ${{ github.event.inputs.target_branch }}
+          fetch-depth: 0 # 获取完整的 Git 历史，对于某些操作（如 SonarQube）可能需要
+          ref: ${{ github.event.inputs.target_branch }} # 使用手动触发时选择的分支
 
-      # --- SonarQube 相关步骤已完全移除或注释掉 ---
-      # - name: Cache SonarQube packages
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ~\AppData\Local\SonarScanner\cache
-      #     key: ${{ runner.os }}-sonar
-      #     restore-keys: ${{ runner.os }}-sonar
-      # - name: Cache SonarQube scanner
-      #   id: cache-sonar-scanner
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: .\.sonar\scanner
-      #     key: ${{ runner.os }}-sonar-scanner
-      #     restore-keys: ${{ runner.os }}-sonar-scanner
-      # - name: Install SonarQube scanner
-      #   if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
-      #   shell: powershell
-      #   run: |
-      #     New-Item -Path .\.sonar\scanner -ItemType Directory -Force | Out-Null
-      #     dotnet tool update dotnet-sonarscanner --tool-path .\.sonar\scanner --verbosity normal
-      #     if ($LASTEXITCODE -ne 0) {
-      #         throw "Failed to install/update dotnet-sonarscanner. Exit code: $LASTEXITCODE"
-      #     }
-      #     Write-Host "dotnet-sonarscanner installed successfully."
-      #     Write-Host "Contents of .sonar/scanner:"
-      #     Get-ChildItem .\.sonar\scanner\
-      # ---------------------------------------------------
+      # --- SonarQube 相关的缓存、安装、分析步骤已全部移除或注释掉 ---
+      # 如果将来需要重新启用 SonarQube，请参考之前的版本并仔细调整。
+      # -----------------------------------------------------------------
 
-      # ---------------------------------------------------
-      # 核心构建步骤
-      - name: Restore NuGet packages
-        shell: powershell # 使用 PowerShell，因为它默认是 windows-latest 的 shell
+      - name: Restore NuGet packages # 还原 NuGet 包
+        shell: powershell # 使用 PowerShell 作为 Shell
         run: |
           Write-Host "Running dotnet restore for AssemblyTool.sln..."
-          dotnet restore AssemblyTool.sln --verbosity normal
-          if ($LASTEXITCODE -ne 0) {
-              throw "dotnet restore failed. Exit code: $LASTEXITCODE"
+          dotnet restore AssemblyTool.sln --verbosity normal # 执行 dotnet restore
+          if ($LASTEXITCODE -ne 0) { # 检查上一个命令的退出码
+              throw "dotnet restore failed. Exit code: $LASTEXITCODE" # 如果失败则抛出错误
           }
           Write-Host "dotnet restore completed successfully."
 
-      - name: Build Project
+      - name: Build Project # 构建项目
         shell: powershell
         run: |
           Write-Host "Building AssemblyTool.sln with configuration ${{ github.event.inputs.build_configuration }}..."
           dotnet build AssemblyTool.sln `
-            --configuration ${{ github.event.inputs.build_configuration }} `
-            --no-restore `
-            --verbosity normal
+            --configuration ${{ github.event.inputs.build_configuration }} ` # 使用手动触发时选择的构建配置
+            --no-restore ` # <--- 修正后的位置：在 --configuration 之后
+            --verbosity normal # 增加详细输出
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet build failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet build completed successfully."
-      # ---------------------------------------------------
 
-      # --- SonarQube End Analysis 步骤也已移除 ---
-      # - name: SonarQube End Analysis
-      #   shell: powershell
-      #   run: |
-      #     Write-Host "Ending SonarQube analysis (dotnet-sonarscanner end)..."
-      #     .\.sonar\scanner\dotnet-sonarscanner end `
-      #       /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-      #     if ($LASTEXITCODE -ne 0) {
-      #         throw "dotnet-sonarscanner end failed. Exit code: $LASTEXITCODE"
-      #     }
-      #     Write-Host "dotnet-sonarscanner end completed successfully."
-      # ---------------------------------------------------
-
-      # ---------------------------------------------------
-      # 发布可运行的二进制文件
-      - name: Publish C# application for Windows x64
+      - name: Publish C# application for Windows x64 # 发布 C# 应用程序为可执行文件
         shell: powershell
         run: |
           Write-Host "Publishing AssemblyTool/AssemblyTool.csproj for Windows x64..."
-          # !!! 再次确认 'AssemblyTool/AssemblyTool.csproj' 是正确的路径
+          # !!! 再次确认 'AssemblyTool/AssemblyTool.csproj' 是你的主可执行项目文件路径
           dotnet publish AssemblyTool/AssemblyTool.csproj `
             --configuration ${{ github.event.inputs.build_configuration }} `
-            --output publish/${{ github.event.inputs.target_runtime }} `
-            --runtime ${{ github.event.inputs.target_runtime }} `
-            --self-contained true `
-            /p:PublishSingleFile=true `
-            /p:TrimUnusedAssemblies=true `
-            --verbosity normal
+            --output publish/${{ github.event.inputs.target_runtime }} ` # 输出目录，包含目标运行时名称
+            --runtime ${{ github.event.inputs.target_runtime }} ` # 目标运行时 (例如 win-x64)
+            --self-contained true ` # 打包 .NET 运行时，目标机器无需预装 .NET
+            /p:PublishSingleFile=true ` # 打包成单个可执行文件
+            /p:TrimUnusedAssemblies=true ` # 裁剪未使用的程序集以减小大小
+            --verbosity normal # 增加详细输出
           if ($LASTEXITCODE -ne 0) {
               throw "dotnet publish failed. Exit code: $LASTEXITCODE"
           }
           Write-Host "dotnet publish completed successfully."
 
-      # ---------------------------------------------------
-      # 上传编译好的二进制文件作为 Artifact
-      - name: Upload ${{ github.event.inputs.target_runtime }} Executable
+      - name: Upload ${{ github.event.inputs.target_runtime }} Executable # 上传编译好的可执行文件作为构建产物 (Artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.target_runtime }}-executable
-          path: publish/${{ github.event.inputs.target_runtime }}
+          name: ${{ github.event.inputs.target_runtime }}-executable # 构建产物的名称
+          path: publish/${{ github.event.inputs.target_runtime }} # 要上传的文件夹路径
