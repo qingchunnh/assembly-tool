@@ -23,18 +23,21 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: 8.0.x # 确保版本覆盖你项目中所有需要的 .NET 版本
+        # 注意：错误日志显示你在使用 .NET 9 SDK，这里保持一致
+        # 如果你的项目是 .NET 8，请改为 8.0.x
+        dotnet-version: 8.0.x 
 
-    # 第三步：还原 NuGet 包依赖
-    - name: Restore dependencies
-      run: dotnet restore AssemblyTool.sln
+    # 第三步：还原 NuGet 包依赖 (这是关键的改动)
+    # 在 restore 命令中就指定 runtime，为独立发布做准备
+    - name: Restore dependencies for specific runtime
+      run: dotnet restore AssemblyTool.sln --runtime win-x64
 
     # 第四步：构建整个解决方案
     # 这一步确保所有项目（包括.NET Framework的）都被正确编译
     - name: Build solution
       run: dotnet build AssemblyTool.sln --configuration Release --no-restore
 
-    # 第五步：发布主项目为独立的单个可执行文件 (这是核心步骤)
+    # 第五步：发布主项目为独立的单个可执行文件
     - name: Publish main project as a single executable
       run: >
         dotnet publish AssemblyTool/AssemblyTool.csproj
