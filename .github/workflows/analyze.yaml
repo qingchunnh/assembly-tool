@@ -1,4 +1,4 @@
-name: Build, Analyze, and Publish C# Executable
+name: Build
 
 on:
   push:
